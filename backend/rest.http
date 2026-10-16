@@ -1,0 +1,16 @@
+### SOS Guardian manual test
+POST http://localhost:4000/v1/auth/register
+Content-Type: application/json
+
+{ "email": "sender@test.com", "password": "password123", "displayName": "Sender" }
+
+###
+POST http://localhost:4000/v1/auth/verify/request
+Content-Type: application/json
+
+{ "channel": "email" }
+# Authorization: Bearer <accessToken>
+
+###
+GET http://localhost:4000/v1/sessions/history?limit=20&offset=0
+# Authorization: Bearer <accessToken>

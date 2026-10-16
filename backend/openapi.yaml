@@ -1,0 +1,12 @@
+openapi: 3.0.0
+info: { title: SOS Guardian API, version: 1.0.0 }
+paths:
+  /v1/auth/register: { post: { summary: register } }
+  /v1/auth/login: { post: { summary: login } }
+  /v1/auth/verify/request: { post: { summary: request OTP } }
+  /v1/auth/verify/confirm: { post: { summary: confirm OTP } }
+  /v1/sessions: { post: { summary: idempotent create } }
+  /v1/sessions/history: { get: { summary: paginated history } }
+  /v1/sessions/{id}/state: { post: { summary: state machine } }
+  /v1/sessions/{id}/notify: { post: { summary: push+sms retry } }
+  /v1/signaling/ice-servers: { get: { summary: STUN+TURN } }

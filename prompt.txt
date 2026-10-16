@@ -1,0 +1,608 @@
+# PROJECT: SOS GUARDIAN — FULLY OPERATIONAL PERSONAL EMERGENCY BUTTON
+
+## 1. ROLE AND OBJECTIVE
+
+Act as a senior Android developer, full-stack engineer, mobile security engineer, backend architect, and QA engineer.
+
+Build a fully functional personal SOS emergency application named **SOS Guardian**.
+
+This must be a working software project, not merely a UI prototype, design mockup, or collection of sample screens.
+
+The main purpose is to let a user trigger an emergency alert with one deliberate button press. The system must notify the user's preselected trusted contacts, transmit the user's location, and allow an authorized receiver to listen to the emergency surroundings through a secure live audio connection.
+
+The application must remain useful if the sender is frightened, injured, unable to speak, or unable to continue operating the phone.
+
+Prioritize reliability, speed, privacy, security, battery efficiency, and ease of use.
+
+## 2. REQUIRED PLATFORMS
+
+Build the project using the following architecture:
+
+### Sender mobile application
+
+* Platform: Android.
+* Language: Kotlin.
+* UI: Jetpack Compose.
+* Architecture: MVVM with a repository layer.
+* Background execution: Foreground services where permitted.
+* Location: Google Play Services Fused Location Provider, with suitable fallbacks.
+* Audio: Android audio APIs and WebRTC for real-time transmission.
+* Networking: HTTPS APIs and secure WebSocket connections.
+* Push notifications: Firebase Cloud Messaging (FCM).
+
+### Receiver application
+
+Build a responsive receiver interface accessible from a separate Android phone and a web browser.
+
+Preferred implementation:
+
+* Receiver mobile application: Kotlin and Jetpack Compose.
+* Receiver web dashboard: React and TypeScript.
+* Both interfaces must use the same authenticated backend and emergency-session data.
+
+### Backend
+
+* Runtime: Node.js with TypeScript.
+* API: NestJS or an equivalent maintainable framework.
+* Database: PostgreSQL.
+* Real-time communication: WebSockets.
+* Audio transport: WebRTC with a secure signaling service and STUN/TURN support.
+* Authentication: Secure access and refresh tokens, or an equivalent established authentication system.
+* Notifications: Firebase Cloud Messaging.
+* Deployment: Docker Compose for local development and a documented production deployment configuration.
+
+Choose compatible stable versions of all dependencies and document them.
+
+## 3. USER REGISTRATION AND AUTHENTICATION
+
+Implement:
+
+1. User registration and login.
+2. Email or phone verification.
+3. Secure logout and session revocation.
+4. Account recovery.
+5. Profile and device management.
+6. Trusted-contact management.
+7. Optional biometric authentication for sensitive settings.
+8. A visible privacy and permissions page.
+
+Never store passwords in plain text.
+
+Never hardcode production credentials, API keys, encryption secrets, or private TURN credentials into the application source code.
+
+Provide development configuration files and an `.env.example` file containing placeholders.
+
+## 4. EMERGENCY CONTACT MANAGEMENT
+
+Allow the sender to add, edit, remove, and select trusted contacts.
+
+Each contact should have:
+
+* Display name.
+* Verified phone number or registered account.
+* Optional email address.
+* Relationship label.
+* Notification preferences.
+* Permission to access an active emergency session.
+* Delivery and acknowledgment status.
+
+Implement a contact-selection screen with checkboxes.
+
+The sender must be able to select one contact, several contacts, or all configured trusted contacts.
+
+Before an emergency occurs, verify that each intended recipient can receive the configured alert type.
+
+Support two recipient types:
+
+1. Registered recipients who can open the receiver application or authenticated web dashboard.
+2. External recipients who can receive a suitable SMS or notification containing a secure emergency-session link.
+
+Do not assume an ordinary SMS recipient can receive live audio directly. The link must open an authenticated, appropriately authorized receiver interface.
+
+Never send continuous location or audio to contacts who were not authorized for that emergency session.
+
+## 5. MAIN SOS BUTTON
+
+Create a simple home screen with:
+
+* A large, prominent red SOS button.
+* A trusted-contact summary.
+* Location permission and GPS status.
+* Network connection status.
+* Audio permission status.
+* A small emergency readiness indicator.
+* Access to settings and contact management.
+
+The SOS button must be easy to find and operate with one hand.
+
+Implement a configurable activation gesture:
+
+* Default: press and hold the SOS button for approximately one second.
+* Optional: a hardware-button shortcut only where the Android version, device, and applicable policies support it.
+* Optional: an accessible large-button mode.
+
+Use a deliberate gesture to reduce accidental activations, but keep the activation process fast.
+
+Once activation is confirmed, do not require additional confirmation screens before sending the alert.
+
+The emergency workflow must be idempotent: repeated button events must not create multiple unintended emergency sessions.
+
+## 6. EMERGENCY ACTIVATION WORKFLOW
+
+When the sender activates SOS, execute these operations in parallel wherever possible:
+
+1. Generate a unique emergency-session ID.
+2. Record the activation timestamp.
+3. Set the session state to ACTIVE.
+4. Obtain the latest available location.
+5. Start location updates using permitted Android background-location mechanisms.
+6. Start the authorized microphone-capture foreground service.
+7. Establish a secure live audio session with authorized receivers.
+8. Send push notifications to the selected trusted contacts.
+9. Send SMS fallback notifications when configured and available.
+10. Update the receiver dashboard in real time.
+11. Record delivery, acknowledgment, connection, and error statuses.
+12. Switch the sender interface into Emergency Mode.
+
+Do not wait for GPS or audio initialization before sending the first emergency alert.
+
+If one subsystem fails, continue the remaining emergency operations.
+
+For example:
+
+* If GPS fails, send the last known location with its timestamp and mark it as stale.
+* If mobile data fails, attempt a configured SMS fallback.
+* If audio fails, continue sending available location and emergency status information.
+* If notifications fail, retry using a bounded retry strategy and display the failure when possible.
+
+Never report an operation as successful until the corresponding service or device has acknowledged it.
+
+## 7. LIVE GPS LOCATION SHARING
+
+After SOS activation, transmit location updates to the authorized receivers.
+
+Every location record should contain:
+
+* Latitude.
+* Longitude.
+* Accuracy in meters.
+* Timestamp.
+* Reported speed when available.
+* Bearing when available.
+* Location provider or quality indicator.
+* Session ID.
+
+Requirements:
+
+* Obtain a fresh location fix as quickly as practical.
+* Continue periodic updates while the emergency session is active and permissions permit.
+* Use adaptive update intervals to balance responsiveness and battery consumption.
+* Suggested initial target: an update every five seconds when an emergency session is active and a suitable fix is available.
+* Send immediate updates when a sufficiently meaningful location change occurs.
+* Show the sender's latest position on an interactive receiver map.
+* Show the location timestamp and accuracy.
+* Display the route history for the active session.
+* Clearly distinguish a live position from a stale or last-known position.
+* Do not fabricate coordinates when GPS is unavailable.
+* Provide an appropriate network-location fallback where available.
+
+The receiver must be able to open the location in a map application.
+
+Do not silently stop sharing because the sender's phone screen turns off.
+
+Explain that GPS availability, background restrictions, permissions, and network coverage affect accuracy and update frequency.
+
+## 8. LIVE EMERGENCY AUDIO TRANSMISSION
+
+This is a core requirement.
+
+When SOS is activated, capture ambient audio using the sender's microphone and transmit it in real time to authorized receivers.
+
+Implement:
+
+* Android microphone permission handling.
+* A compliant foreground service with the required microphone service type.
+* Persistent emergency notification while applicable.
+* WebRTC audio transport.
+* Secure session signaling.
+* STUN and TURN connectivity support.
+* Audio connection status.
+* Receiver playback controls.
+* Automatic reconnection attempts.
+* Connection timeout and error handling.
+* Audio quality adaptation to changing network conditions.
+* Optional mute functionality for the sender when safe and appropriate.
+
+The receiver should be able to hear what is happening around the sender with minimal practical latency.
+
+Do not depend on an ordinary background WebSocket connection as the audio transport. Use an appropriate real-time media transport.
+
+Do not record or persist audio by default. Transmit live audio only while the emergency session is active and authorized. If recording is ever added, make it a separate explicit opt-in feature with retention controls.
+
+Important Android limitations:
+
+* Microphone access from the background is restricted by Android version and application state.
+* Design the activation flow so the microphone foreground service starts while the app is in a permitted state.
+* Request permissions in advance during setup rather than presenting permission dialogs only after an emergency begins.
+* Test screen-off operation on real devices.
+* If audio capture cannot start, notify the sender where possible and show the receiver that audio is unavailable.
+* Never bypass operating-system privacy indicators or microphone restrictions.
+
+For multiple recipients, use an SFU or an appropriately designed secure media distribution architecture when needed. Do not implement an insecure public audio stream.
+
+## 9. EMERGENCY MODE AND SCREEN LOCK BEHAVIOR
+
+Immediately after SOS activation, switch the sender application into a persistent Emergency Mode.
+
+The interface should:
+
+* Display a clear emergency-active indicator.
+* Show that alerts have been sent or are pending.
+* Show GPS and audio transmission status.
+* Keep essential emergency information visible.
+* Prevent accidental navigation away from the emergency workflow.
+* Minimize unnecessary interaction.
+* Continue permitted background services when the display turns off.
+* Provide a clearly accessible emergency cancellation or termination control.
+* Prevent unauthorized users from casually changing contacts or disabling emergency settings during an active session.
+
+Use Android screen-on and lock-screen presentation APIs only where appropriate and permitted.
+
+Do not claim that a normal application can disable the Android power button, prevent the user from unlocking the device, or enforce a device-wide lock.
+
+If true device-wide kiosk or task-locking behavior is needed, implement it as an optional managed-device feature requiring the appropriate device-owner provisioning and explicit setup.
+
+The standard consumer version must remain compatible with ordinary Android devices.
+
+Do not conceal microphone use, evade system permission indicators, or make the application impossible for its owner to stop.
+
+## 10. RECEIVER APPLICATION AND LIVE DASHBOARD
+
+Create a dedicated receiver experience.
+
+When a trusted contact receives an emergency notification, opening it should display an authenticated emergency-session page.
+
+Show:
+
+* Sender identity.
+* Emergency activation time.
+* Current session status.
+* Live map.
+* Latest GPS coordinates.
+* Location accuracy and freshness.
+* Movement history when available.
+* Audio connection status.
+* Live audio playback.
+* Last successful location update.
+* Network and service health.
+* Contact acknowledgment status.
+* A safe method to contact the sender.
+* A button to open directions to the latest known position.
+
+Allow the receiver to acknowledge the emergency.
+
+The sender's application should show that the receiver acknowledged the alert.
+
+Provide appropriate audible and visual notifications for a newly received emergency.
+
+Do not expose the emergency dashboard or live audio to unauthenticated visitors.
+
+Require authorization for each emergency session, not just knowledge of the session URL.
+
+A receiver must not be able to access a different sender's location or audio by changing an ID in the URL or API request.
+
+## 11. NETWORK FAILURE AND RETRY LOGIC
+
+Design the system for unreliable connectivity.
+
+Handle:
+
+* No internet.
+* Weak mobile data.
+* Wi-Fi to mobile-data switching.
+* GPS disabled.
+* Microphone permission revoked.
+* App process termination.
+* Backend outage.
+* FCM delivery delay.
+* Receiver offline.
+* WebRTC connection failure.
+* Phone reboot.
+* Low battery.
+
+Persist essential emergency-session metadata locally so it can be synchronized when connectivity returns.
+
+Use bounded retries with exponential backoff and jitter for appropriate network operations.
+
+Keep the active session status separate from individual subsystem status.
+
+For example:
+
+* Emergency: ACTIVE.
+* GPS: STALE.
+* Audio: CONNECTING.
+* Notifications: PARTIALLY_DELIVERED.
+
+Do not promise guaranteed delivery without network or carrier service.
+
+For a configured SMS fallback, send a concise emergency alert with the last available location and its timestamp. Include a secure receiver link when available. Do not put sensitive authentication tokens in SMS URLs.
+
+Where no network is available, retain essential emergency information locally and retry permitted operations. Clearly document that remote alerts cannot reach a receiver until a communication path becomes available.
+
+## 12. EMERGENCY SESSION LIFECYCLE
+
+Implement the following session states:
+
+IDLE
+ACTIVATING
+ACTIVE
+DEGRADED
+CANCEL_REQUESTED
+RESOLVED
+FAILED
+
+Support:
+
+* Activation.
+* Receiver acknowledgment.
+* Live monitoring.
+* Temporary service degradation.
+* Authorized cancellation.
+* Resolution.
+* Audit history.
+
+The sender must have a clear way to end an accidental or resolved emergency.
+
+For cancellation:
+
+1. Require a deliberate action.
+2. Provide an optional short cancellation countdown.
+3. Notify all authorized recipients that the emergency has ended.
+4. Stop audio transmission.
+5. Stop location sharing.
+6. Close media connections.
+7. End the foreground service when no longer needed.
+8. Update the session state.
+9. Retain only the metadata permitted by the retention policy.
+
+A receiver must not be able to terminate the sender's emergency session merely by clicking a button. Any remote resolution or cancellation feature must have explicit authorization rules.
+
+## 13. BACKEND API DESIGN
+
+Create authenticated APIs and real-time events for:
+
+* Account registration and login.
+* Contact creation and management.
+* Device registration.
+* Emergency session creation.
+* Emergency activation.
+* Location update ingestion.
+* Emergency-session retrieval.
+* Receiver acknowledgment.
+* Audio-session signaling.
+* Session cancellation and resolution.
+* Push notification delivery status.
+* Authorized session history.
+* Device and account revocation.
+
+Use strict input validation, rate limits, authorization checks, request timeouts, and structured error responses.
+
+Use server-side authorization for every sensitive operation.
+
+Use WebSockets for emergency status and location events where appropriate.
+
+Use WebRTC for live audio, not the ordinary location-update API.
+
+Create database migrations, indexes, foreign keys, and a clear data model for users, devices, trusted contacts, emergency sessions, location updates, and delivery receipts.
+
+Use UTC timestamps in storage and render local times in the user interface.
+
+## 14. SECURITY AND PRIVACY
+
+Treat the application as safety-critical personal software.
+
+Implement:
+
+* HTTPS/TLS for network communication.
+* Secure WebSocket connections.
+* Authenticated WebRTC signaling.
+* Appropriate media encryption.
+* Short-lived access credentials.
+* Secure token storage.
+* Contact verification.
+* Session-specific access control.
+* Rate limiting.
+* Replay protection and idempotency.
+* Audit logs for sensitive access.
+* Account and device revocation.
+* Location and audio data minimization.
+* Configurable retention and deletion.
+* Protection against IDOR and unauthorized session access.
+
+Never expose precise location or audio to the public.
+
+Never rely only on a secret URL as an authorization mechanism.
+
+Never store unnecessary sensitive information in logs.
+
+Use explicit informed consent for live microphone transmission and clearly disclose to the sender that selected receivers may hear the surroundings.
+
+Provide a way to revoke a trusted contact's access.
+
+## 15. USER INTERFACE DESIGN
+
+Use a simple, high-contrast, accessibility-friendly interface.
+
+Screens:
+
+1. Welcome and onboarding.
+2. Registration and login.
+3. Permission setup.
+4. Main SOS screen.
+5. Trusted contacts.
+6. Add and verify contact.
+7. Emergency readiness check.
+8. Active Emergency Mode.
+9. Emergency session history.
+10. Privacy and security settings.
+11. Receiver emergency dashboard.
+12. Receiver notification and acknowledgment.
+13. Error and degraded-connectivity states.
+
+Avoid unnecessary animations and complicated navigation.
+
+Make the main SOS control usable with one hand.
+
+Use large touch targets, clear text, screen-reader labels, and color-independent status indicators.
+
+Show actual operational status rather than decorative indicators.
+
+## 16. TESTING REQUIREMENTS
+
+Write unit tests, integration tests, API authorization tests, and Android UI tests.
+
+At minimum, verify the following scenarios:
+
+TEST 1: Normal emergency
+
+* Activate SOS.
+* Verify that one emergency session is created.
+* Verify that all selected contacts are notified.
+* Verify that location updates reach the authorized receiver.
+* Verify that the receiver can establish live audio.
+* Verify that the sender enters Emergency Mode.
+
+TEST 2: Screen off
+
+* Activate SOS.
+* Turn off the sender's display.
+* Verify that permitted location and audio services continue.
+* Verify behavior on supported Android versions and physical devices.
+
+TEST 3: Partial network failure
+
+* Disable mobile data or Wi-Fi.
+* Verify degraded status, retry behavior, and configured fallback handling.
+* Restore connectivity and verify recovery.
+
+TEST 4: GPS failure
+
+* Disable location services.
+* Verify that the system does not fabricate a location.
+* Verify that stale-location warnings are visible.
+
+TEST 5: Audio failure
+
+* Revoke microphone permission or block the media connection.
+* Verify that audio is marked unavailable.
+* Verify that location and alert delivery continue when possible.
+
+TEST 6: Receiver authorization
+
+* Attempt to access an unrelated user's emergency session.
+* Verify that the backend rejects access.
+
+TEST 7: Duplicate activation
+
+* Trigger repeated activation events.
+* Verify that duplicate emergency sessions are not unintentionally created.
+
+TEST 8: Emergency cancellation
+
+* End an active session.
+* Verify that audio and location sharing stop.
+* Verify that authorized receivers are notified.
+
+TEST 9: Process termination and recovery
+
+* Terminate the application process or simulate service failure.
+* Verify recovery behavior within operating-system restrictions.
+* Document scenarios that require user interaction to resume.
+
+TEST 10: Battery and performance
+
+* Test prolonged emergency operation.
+* Measure location-update frequency, audio latency, battery consumption, and reconnection behavior.
+
+TEST 11: Privacy
+
+* Verify that no audio is transmitted before authorized activation.
+* Verify that no location or audio remains accessible to unauthorized receivers after session termination.
+
+Do not claim a test passed unless it was actually executed.
+
+## 17. DELIVERABLES
+
+Produce a complete repository containing:
+
+* Android sender application source.
+* Android receiver application source, if implemented separately.
+* React receiver dashboard source.
+* Backend source.
+* Database schema and migrations.
+* WebRTC signaling and media-session implementation.
+* Notification implementation.
+* SMS fallback integration behind a configurable provider.
+* Unit and integration tests.
+* Docker Compose configuration.
+* `.env.example`.
+* API documentation.
+* Architecture documentation.
+* Setup and installation instructions.
+* Android permission and device-testing guide.
+* Production deployment guide.
+* Troubleshooting guide.
+* Security and privacy notes.
+
+Include exact commands to install dependencies, configure the backend, run migrations, launch the services, build the Android APK, and run the tests.
+
+Use real integrations wherever credentials and infrastructure are available. Where credentials are missing, implement the integration and document exactly which environment variables or provider accounts are required.
+
+Do not substitute fake GPS, simulated audio, hardcoded contacts, mock notifications, or artificial connection-status indicators for real functionality in the production code.
+
+Mocks are acceptable only in automated tests and clearly labeled development demonstrations.
+
+## 18. IMPLEMENTATION PLAN
+
+Work in these phases:
+
+Phase 1: Inspect the development environment and establish the project structure.
+
+Phase 2: Implement authentication, database models, contact management, and authorization.
+
+Phase 3: Implement the sender application and emergency-session lifecycle.
+
+Phase 4: Implement real GPS sharing and location visualization.
+
+Phase 5: Implement secure WebRTC signaling, audio streaming, and receiver playback.
+
+Phase 6: Implement push notifications, acknowledgment, and configured SMS fallback.
+
+Phase 7: Implement Emergency Mode and compliant background execution.
+
+Phase 8: Implement the receiver dashboard and emergency history.
+
+Phase 9: Implement network resilience, security controls, and data-retention behavior.
+
+Phase 10: Execute tests, fix defects, and prepare deployment documentation.
+
+Do not stop after generating a plan or a UI prototype. Continue implementing the working system until all feasible phases are complete. Report blockers only when they genuinely require credentials, infrastructure, hardware access, or external authorization.
+
+## 19. DEFINITION OF DONE
+
+The project is complete only when:
+
+* The sender can install and open the Android application.
+* The sender can configure and verify trusted contacts.
+* A deliberate SOS activation creates a real emergency session.
+* Selected recipients receive real notifications.
+* An authorized receiver can view real location updates.
+* An authorized receiver can hear live audio from the sender when the platform, permissions, and network allow it.
+* Emergency Mode remains active while permitted services run.
+* Cancellation stops active sharing and notifies the recipients.
+* Authorization prevents unrelated users from accessing the session.
+* The application handles realistic permission and connectivity failures.
+* The source code, environment configuration, deployment steps, and tests are provided.
+* Every unsupported platform behavior and untested requirement is documented honestly.
+
+Begin by creating the project structure and implementing the backend and Android sender application. Then connect and test each feature end to end. Prioritize a reliable emergency alert and location-sharing foundation before adding optional features.
