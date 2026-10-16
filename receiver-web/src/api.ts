@@ -13,6 +13,18 @@ export async function login(emailOrPhone: string, password: string) {
   return r.json() as Promise<{ accessToken: string; refreshToken: string; user: any }>;
 }
 
+export async function register(email: string, password: string, displayName: string, phone?: string) {
+  const r = await fetch(`${BASE}/v1/auth/register`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, displayName, phone: phone || undefined }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.error || 'registration failed');
+  }
+  return r.json() as Promise<{ accessToken: string; refreshToken: string; user: any }>;
+}
+
 export async function getSession(token: string, id: string) {
   const r = await fetch(`${BASE}/v1/sessions/${id}`, { headers: authHeaders(token) });
   if (r.status === 403) throw new Error('Not authorized for this session');

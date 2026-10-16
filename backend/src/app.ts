@@ -25,6 +25,23 @@ export function createApp() {
   const notifyLimiter = rateLimit({ windowMs: 60_000, max: 5, message: { code: 'RATE_LIMIT', error: 'notify rate limited' } });
   app.use(globalLimiter);
 
+  app.get('/', (_req, res) => {
+    res.json({
+      name: 'SOS Guardian Backend API',
+      status: 'running',
+      version: '0.1.0',
+      health: '/health',
+      webReceiverUrl: config.corsOrigin[0] || 'http://localhost:5173',
+      endpoints: {
+        auth: '/v1/auth',
+        sessions: '/v1/sessions',
+        contacts: '/v1/contacts',
+        signaling: '/v1/signaling',
+        stream: 'ws://localhost:4000/v1/stream'
+      }
+    });
+  });
+
   app.get('/health', async (_req, res) => {
     try { await query('SELECT 1'); res.json({ ok: true, service: 'sos-guardian-backend', db: 'up' }); }
     catch { res.status(503).json({ ok: false, db: 'down' }); }

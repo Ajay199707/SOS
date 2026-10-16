@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ack, getHistory, getSession, login } from './api';
+import { ack, getHistory, getSession, login, register } from './api';
 import { useStream } from './useStream';
 import { MapView, Loc } from './MapView';
 import { AudioPlayer } from './AudioPlayer';
@@ -8,6 +8,8 @@ export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('sos_token'));
   const [email, setEmail] = useState('receiver@test.com');
   const [password, setPassword] = useState('password123');
+  const [displayName, setDisplayName] = useState('SOS Receiver');
+  const [isRegistering, setIsRegistering] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
   const [session, setSession] = useState<any>(null);
   const [locations, setLocations] = useState<Loc[]>([]);
@@ -33,9 +35,22 @@ export default function App() {
     if (token) getHistory(token).then((h) => setHistory(h.items ?? [])).catch(() => {});
   }, [token]);
 
-  const doLogin = async () => {
-    try { const r = await login(email, password); localStorage.setItem('sos_token', r.accessToken); setToken(r.accessToken); setErr(null); }
-    catch { setErr('Login failed'); }
+  const doSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    try {
+      if (isRegistering) {
+        const r = await register(email, password, displayName);
+        localStorage.setItem('sos_token', r.accessToken);
+        setToken(r.accessToken);
+      } else {
+        const r = await login(email, password);
+        localStorage.setItem('sos_token', r.accessToken);
+        setToken(r.accessToken);
+      }
+    } catch (e: any) {
+      setErr(e.message || (isRegistering ? 'Registration failed' : 'Login failed'));
+    }
   };
 
   const openSession = async () => {
@@ -52,12 +67,51 @@ export default function App() {
 
   if (!token) {
     return (
-      <div style={{ maxWidth: 420, margin: '40px auto', fontFamily: 'sans-serif' }}>
-        <h2>SOS Guardian Receiver</h2>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email or phone" style={{ width: '100%', marginBottom: 8 }} />
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="password" style={{ width: '100%', marginBottom: 8 }} />
-        <button onClick={doLogin}>Login</button>
-        {err && <p style={{ color: 'red' }}>{err}</p>}
+      <div style={{ maxWidth: 440, margin: '50px auto', padding: '28px 24px', fontFamily: 'system-ui, -apple-system, sans-serif', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+        <h2 style={{ marginTop: 0, color: '#1e293b' }}>SOS Guardian Receiver</h2>
+        <p style={{ fontSize: 14, color: '#64748b', marginTop: -8 }}>
+          {isRegistering ? 'Create a receiver account' : 'Sign in to monitor emergency alerts'}
+        </p>
+
+        <form onSubmit={doSubmit}>
+          {isRegistering && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Display Name</label>
+              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required placeholder="Your Name" style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', borderRadius: 4, border: '1px solid #cbd5e1' }} />
+            </div>
+          )}
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Email or Phone</label>
+            <input value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="receiver@test.com" style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', borderRadius: 4, border: '1px solid #cbd5e1' }} />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="min 8 chars" style={{ width: '100%', padding: '8px 10px', boxSizing: 'border-box', borderRadius: 4, border: '1px solid #cbd5e1' }} />
+          </div>
+
+          <button type="submit" style={{ width: '100%', padding: '10px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, fontWeight: 600, cursor: 'pointer' }}>
+            {isRegistering ? 'Register' : 'Login'}
+          </button>
+        </form>
+
+        {err && <p style={{ color: '#dc2626', fontSize: 14, marginTop: 12 }}>{err}</p>}
+
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #f1f5f9', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: '#64748b' }}>
+            {isRegistering ? 'Already have an account?' : "Don't have an account?"}
+          </span>
+          <button type="button" onClick={() => { setIsRegistering(!isRegistering); setErr(null); }} style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+            {isRegistering ? 'Sign In' : 'Create Account'}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 14, background: '#f8fafc', padding: '10px 12px', borderRadius: 4, fontSize: 12, color: '#475569' }}>
+          <b>Demo Credentials:</b><br />
+          Email: <code>receiver@test.com</code><br />
+          Password: <code>password123</code>
+        </div>
       </div>
     );
   }
