@@ -2,8 +2,12 @@ import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createApp } from './app.js';
 import { config } from './config.js';
-import { verifyAccess } from './utils/tokens.js';
+import { verifyAccess, isUuid } from './utils/tokens.js';
 import { query } from './db.js';
+
+process.on('unhandledRejection', (err) => {
+  console.error('[UNHANDLED REJECTION]', err);
+});
 
 const app = createApp();
 const server = http.createServer(app);
@@ -30,6 +34,7 @@ wss.on('connection', async (ws: any, req) => {
     const token = url.searchParams.get('token') || '';
     const sessionId = url.searchParams.get('sessionId') || '';
     if (!token || !sessionId) return ws.close(4401, 'missing token/sessionId');
+    if (!isUuid(sessionId)) return ws.close(4404, 'invalid sessionId');
     const decoded: any = verifyAccess(token);
     const userId = decoded.sub;
 

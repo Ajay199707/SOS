@@ -3,9 +3,15 @@ import { z } from 'zod';
 import { query } from '../db.js';
 import { requireAuth, AuthedRequest } from '../middleware/auth.js';
 import { sendPush, sendSmsFallback } from '../services/notifications.js';
+import { isUuid } from '../utils/tokens.js';
 
 const router = Router();
 router.use(requireAuth);
+
+router.param('id', (req, res, next, id) => {
+  if (!isUuid(id)) return res.status(404).json({ code: 'NOT_FOUND', error: 'session not found' });
+  next();
+});
 
 const CreateSession = z.object({ idempotencyKey: z.string().min(8).max(128), contactIds: z.array(z.string().uuid()).min(1) });
 const Location = z.object({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180), accuracyM: z.number().optional(), speedMps: z.number().optional(), bearingDeg: z.number().optional(), provider: z.string().optional(), isStale: z.boolean().default(false) });
@@ -21,6 +27,7 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 async function canRead(sessionId: string, userId: string) {
+  if (!isUuid(sessionId)) return { session: null as any, allowed: false };
   const r = await query(`SELECT * FROM emergency_sessions WHERE id=$1`, [sessionId]);
   if (!r.rows.length) return { session: null as any, allowed: false };
   const s = r.rows[0];

@@ -32,7 +32,18 @@ export default function App() {
   const { connected } = useStream(sessionId || null, token, onEvent);
 
   useEffect(() => {
-    if (token) getHistory(token).then((h) => setHistory(h.items ?? [])).catch(() => {});
+    if (token) {
+      getHistory(token)
+        .then((h) => {
+          const items = h.items ?? [];
+          setHistory(items);
+          if (items.length > 0 && !session) {
+            setSessionId(items[0].id);
+            openSession(items[0].id);
+          }
+        })
+        .catch(() => {});
+    }
   }, [token]);
 
   const doSubmit = async (e: React.FormEvent) => {
@@ -53,16 +64,27 @@ export default function App() {
     }
   };
 
-  const openSession = async () => {
-    if (!token || !sessionId) return;
+  const openSession = async (idToOpen?: string) => {
+    const target = (typeof idToOpen === 'string' ? idToOpen : sessionId).trim();
+    if (!token) return;
+    if (!target) {
+      setErr('Please enter a session UUID or select one from the list below');
+      return;
+    }
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(target)) {
+      setErr(`"${target}" is not a valid UUID format (e.g. a1b2c3d4-e5f6-4a1b-8c2d-3e4f5a6b7c8d)`);
+      return;
+    }
+    setSessionId(target);
     try {
-      const s = await getSession(token, sessionId);
+      const s = await getSession(token, target);
       setSession(s);
       setLocations((s.locations ?? []).map((l: any) => ({
         lat: l.lat, lon: l.lon, accuracy_m: l.accuracy_m, recorded_at: l.recorded_at, is_stale: l.is_stale, provider: l.provider,
       })));
       setErr(null);
-    } catch (e: any) { setErr(e.message); }
+    } catch (e: any) { setErr(e.message || 'Failed to open session'); }
   };
 
   if (!token) {
@@ -117,26 +139,122 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: 16, fontFamily: 'sans-serif' }}>
-      <h2>Emergency dashboard {connected ? '● live' : '○ offline'}</h2>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="session UUID" style={{ flex: 1 }} />
-        <button onClick={openSession}>Open</button>
-        <button onClick={() => { localStorage.removeItem('sos_token'); setToken(null); }}>Logout</button>
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: 16, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ margin: 0, color: '#1e293b' }}>
+          Emergency Dashboard{' '}
+          <span style={{ fontSize: 14, fontWeight: 400, color: connected ? '#16a34a' : '#64748b', marginLeft: 8 }}>
+            {connected ? '● live stream connected' : '○ stream offline'}
+          </span>
+        </h2>
+        <button
+          onClick={() => { localStorage.removeItem('sos_token'); setToken(null); setSession(null); }}
+          style={{ padding: '6px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
+        >
+          Logout
+        </button>
       </div>
-      {err && <p style={{ color: 'red' }}>{err}</p>}
-      {session && (
-        <>
-          <p><b>State:</b> {session.state} · <b>Since:</b> {new Date(session.created_at).toLocaleString()} · <b>Audio:</b> {session.audio_status}</p>
-          <MapView locations={locations} />
-          <AudioPlayer sessionId={session.id} token={token} enabled={['ACTIVE', 'DEGRADED'].includes(session.state)} />
-          <button style={{ marginTop: 12 }} onClick={() => ack(token, session.id).then(() => alert('Acknowledged — sender sees it'))}>
-            Acknowledge emergency
-          </button>
-        </>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input
+          value={sessionId}
+          onChange={(e) => setSessionId(e.target.value)}
+          placeholder="Enter session UUID"
+          style={{ flex: 1, padding: '8px 10px', borderRadius: 4, border: '1px solid #cbd5e1' }}
+        />
+        <button
+          onClick={() => openSession()}
+          style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+        >
+          Open
+        </button>
+      </div>
+
+      {err && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '10px 12px', borderRadius: 6, fontSize: 14, marginBottom: 16 }}>
+          {err}
+        </div>
       )}
-      <h3>Recent sessions</h3>
-      <ul>{history.map((h: any) => <li key={h.id}>{h.state} · {new Date(h.created_at).toLocaleString()} · <code>{h.id.slice(0, 8)}</code></li>)}</ul>
+
+      {session && (
+        <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 16, background: '#fff', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 12 }}>
+            <span style={{
+              padding: '4px 10px', borderRadius: 4, fontSize: 13, fontWeight: 700,
+              background: session.state === 'ACTIVE' ? '#fee2e2' : '#f1f5f9',
+              color: session.state === 'ACTIVE' ? '#dc2626' : '#475569'
+            }}>
+              STATUS: {session.state}
+            </span>
+            <span style={{ fontSize: 13, color: '#64748b' }}>
+              Started: {new Date(session.created_at).toLocaleTimeString()}
+            </span>
+            <span style={{ fontSize: 13, color: '#64748b' }}>
+              Audio: <b>{session.audio_status}</b>
+            </span>
+          </div>
+
+          <div style={{ height: 320, borderRadius: 6, overflow: 'hidden', marginBottom: 14 }}>
+            <MapView locations={locations} />
+          </div>
+
+          <AudioPlayer sessionId={session.id} token={token} enabled={['ACTIVE', 'DEGRADED'].includes(session.state)} />
+
+          <div style={{ marginTop: 14 }}>
+            <button
+              style={{ padding: '10px 16px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+              onClick={() => ack(token, session.id).then(() => alert('Emergency acknowledged! The sender has been notified.')).catch((e) => alert(e.message))}
+            >
+              ✓ Acknowledge Emergency
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 24, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#334155' }}>Recent Emergency Sessions</h3>
+        {history.length === 0 ? (
+          <p style={{ color: '#64748b', fontSize: 14 }}>No sessions found yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {history.map((h: any) => (
+              <div
+                key={h.id}
+                onClick={() => { setSessionId(h.id); openSession(h.id); }}
+                style={{
+                  padding: '10px 14px',
+                  background: session?.id === h.id ? '#eff6ff' : '#f8fafc',
+                  border: `1px solid ${session?.id === h.id ? '#93c5fd' : '#e2e8f0'}`,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <div>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    marginRight: 8,
+                    background: h.state === 'ACTIVE' ? '#fee2e2' : '#f1f5f9',
+                    color: h.state === 'ACTIVE' ? '#dc2626' : '#475569'
+                  }}>
+                    {h.state}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#334155' }}>
+                    {new Date(h.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <code style={{ fontSize: 12, color: '#2563eb' }}>{h.id.slice(0, 8)}...</code>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

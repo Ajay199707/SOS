@@ -4,8 +4,15 @@ import { config } from '../config.js';
 import { requireAuth, AuthedRequest } from '../middleware/auth.js';
 import { query } from '../db.js';
 
+import { isUuid } from '../utils/tokens.js';
+
 const router = Router();
 router.use(requireAuth);
+
+router.param('sessionId', (req, res, next, id) => {
+  if (!isUuid(id)) return res.status(404).json({ code: 'NOT_FOUND', error: 'session not found' });
+  next();
+});
 
 function timeLimitedTurn() {
   // If TURN_SHARED_SECRET set, generate time-limited credentials (coturn static-auth-secret).
